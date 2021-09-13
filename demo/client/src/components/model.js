@@ -363,6 +363,7 @@ class Model extends React.Component {
 		if (encoder === normalizeEncoderName(Encoder.None)) {
 			this.setState({ inputType: INPUT_TYPE_RAW })
 			this.transformInput = async (input) => {
+				console.log('none encoder', input);
 				input = JSON.parse(input)
 				if (!Array.isArray(input)) {
 					throw new Error("The input data must be an array.")
@@ -373,6 +374,7 @@ class Model extends React.Component {
 		} else if (encoder === normalizeEncoderName(Encoder.Mult1E9Round)) {
 			this.setState({ inputType: INPUT_TYPE_RAW })
 			this.transformInput = async (input) => {
+				console.log('Mult1E9Round encoder', input);
 				input = JSON.parse(input)
 				if (!Array.isArray(input)) {
 					throw new Error("The input data must be an array.")
@@ -384,6 +386,7 @@ class Model extends React.Component {
 			this.setState({ inputType: INPUT_TYPE_TEXT })
 			UniversalSentenceEncoder.load().then(use => {
 				this.transformInput = async (query) => {
+					console.log('USE encoder', query);
 					const embeddings = await use.embed(query)
 					let embedding = tf.tidy(_ => {
 						const emb = embeddings.gather(0)
@@ -407,6 +410,7 @@ class Model extends React.Component {
 				alpha: 1,
 			}).then(model => {
 				this.transformInput = async (imgElement) => {
+					console.log('MobileNetV2:', imgElement);
 					if (Array.isArray(imgElement)) {
 						// Assume this is for data already in the database.
 						return imgElement
@@ -433,6 +437,7 @@ class Model extends React.Component {
 				this.vocab[value] = key
 			})
 			this.transformInput = async (query) => {
+				console.log('IMDB:', query);
 				const tokens = query.toLocaleLowerCase('en').split(/\s+/)
 				return tokens.map(t => {
 					let idx = ImdbVocab[t]
@@ -447,6 +452,7 @@ class Model extends React.Component {
 		} else if (encoder === 'MurmurHash3'.toLocaleLowerCase('en')) {
 			this.setState({ inputType: INPUT_TYPE_TEXT })
 			this.transformInput = async (query) => {
+				console.log('MurmurHash3', query);
 				const tokens = query.toLocaleLowerCase('en').split(/\s+/)
 				return tokens.map(murmur3).map(v => this.web3.utils.toHex(v))
 			}
@@ -1066,6 +1072,7 @@ class Model extends React.Component {
 	train() {
 		const classification = this.state.trainClassIndex
 		let originalData = this.state.input
+		// console.log(classification, originalData);
 		if (this.state.inputType === INPUT_TYPE_IMAGE) {
 			originalData = document.getElementById('input-image')
 		}
@@ -1073,13 +1080,15 @@ class Model extends React.Component {
 			.then(trainData => {
 				// TODO Pass around BN's and avoid rounding issues.
 				// Add extra wei to help with rounding issues. Extra gets returned right away by the contract.
+				console.log('after transformed data', trainData);
 				const value = this.state.depositCost + (this.state.depositCost > 0 ? 1E14 : 0)
 				let sentNotificationKey
+
 				return this.state.contractInstance.methods.addData(trainData, classification)
 					.send({ from: this.state.accounts[0], value })
 					.on('transactionHash', (transactionHash) => {
 						sentNotificationKey = this.notify("Data was sent but has not been confirmed yet")
-
+						// console.log('transactionHash', transactionHash);
 						// Save original training data.
 						// We don't really need to save it to the blockchain
 						// because it would be difficult and expensive to enforce that it matches the data.
