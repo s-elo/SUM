@@ -80,12 +80,16 @@ contract SparsePerceptron is Classifier64 {
     }
 
     function predict(int64[] memory data) public override view returns (uint64) {
-        int m = intercept;
+        int m = intercept; // bias
+
         for (uint i = 0; i < data.length; ++i) {
             // `update` assumes this check is done.
+            // data[i] is the index of the features that has been used
             require(data[i] >= 0, "Not all indices are >= 0.");
+            // accumulate the sparse weights
             m = m.add(weights[uint64(data[i])]);
         }
+
         if (m <= 0) {
             return 0;
         } else {
@@ -95,7 +99,10 @@ contract SparsePerceptron is Classifier64 {
 
     function update(int64[] memory data, uint64 classification) public override onlyOwner {
         // `data` holds the indices of the features that are present.
+        // call the predict fucntion to get the prediction
         uint64 prediction = predict(data);
+        
+        // only update when prediction is not right
         if (prediction != classification) {
             // Update model.
             // predict checks each data[i] >= 0.

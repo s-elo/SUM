@@ -19,6 +19,7 @@ contract Classifier is Ownable {
     /**
      * The indices of the features to use from some well-known shared encoder.
      * If it is empty, then all features are used.
+     * Just store the index of the features being used
      */
     uint32[] public featureIndices;
 

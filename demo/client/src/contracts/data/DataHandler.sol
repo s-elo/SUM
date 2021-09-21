@@ -17,6 +17,7 @@ interface DataHandler {
 contract DataHandler64 is Ownable, DataHandler {
     using SafeMath for uint256;
 
+    // this is the meta-data for a new data sample
     struct StoredData {
         /**
          * The data stored.
@@ -24,6 +25,9 @@ contract DataHandler64 is Ownable, DataHandler {
         // Don't store the data because it's not really needed since we emit events when data is added.
         // The main reason for storing the data in here is to ensure equality on future interactions like when refunding.
         // This extra equality check is only necessary if you're worried about hash collisions.
+        // basically, the AddData event defined in the CollaborativeTrainer will be emitted
+        // when call the addData function, and we can use web3 to watch the event
+        // so that we can get the updated data and other info.
         // int64[] d;
         /**
          * The classification for the data.
@@ -57,20 +61,27 @@ contract DataHandler64 is Ownable, DataHandler {
     }
 
     /**
-     * Meta-data for data that has been added.
+     * Meta-data array for data that has been added.
      */
     mapping(bytes32 => StoredData) public addedData;
 
     function getClaimableAmount(int64[] memory data, uint64 classification, uint addedTime, address originalAuthor)
             public view returns (uint) {
+        // generate a hash for the given info of the corresponding data sample
         bytes32 key = keccak256(abi.encodePacked(data, classification, addedTime, originalAuthor));
+
+        // use the hash to get the meta-data (the structure) of the data sample
         StoredData storage existingData = addedData[key];
+
         // Validate found value.
         // usually unnecessary: require(isDataEqual(existingData.d, data), "Data is not equal.");
+        // only for avoiding hash collisions
+        // as metioned above, the data can be got by emitting the event
         require(existingData.c == classification, "Classification is not equal.");
         require(existingData.t == addedTime, "Added time is not equal.");
         require(existingData.sender == originalAuthor, "Data isn't from the right author.");
 
+        // just get the corresponding info we want
         return existingData.claimableAmount;
     }
 
@@ -119,7 +130,7 @@ contract DataHandler64 is Ownable, DataHandler {
      * Log an attempt to add data.
      *
      * @param msgSender The address of the one attempting to add data.
-     * @param cost The cost required to add new data.
+     * @param cost The cost required to add new data. (from the IncentiveMechanism)
      * @param data A single sample of training data for the model.
      * @param classification The label for `data`.
      * @return time The time which the data was added, i.e. the current time in seconds.
@@ -128,13 +139,17 @@ contract DataHandler64 is Ownable, DataHandler {
         public onlyOwner
         returns (uint time) {
         time = now;  // solium-disable-line security/no-block-members
+
+        // get the meta-info of the data
         bytes32 key = keccak256(abi.encodePacked(data, classification, time, msgSender));
         StoredData storage existingData = addedData[key];
-        bool okayToOverwrite = existingData.sender == address(0) || existingData.claimableAmount == 0;
-        require(okayToOverwrite, "Conflicting data key. The data may have already been added.");
+
         // Maybe we do want to allow duplicate data to be added but just not from the same address.
         // Of course that is not sybil-proof.
-
+        // if it is a new data, the claimable amount should be 0 or the sender is the zero-account
+        bool okayToOverwrite = existingData.sender == address(0) || existingData.claimableAmount == 0;
+        require(okayToOverwrite, "Conflicting data key. The data may have already been added.");
+        
         // Store data.
         addedData[key] = StoredData({
             // not necessary: d: data,
@@ -161,8 +176,10 @@ contract DataHandler64 is Ownable, DataHandler {
     function handleRefund(address submitter, int64[] memory data, uint64 classification, uint addedTime)
         public onlyOwner
         returns (uint claimableAmount, bool claimedBySubmitter, uint numClaims) {
+        // get the meta info first
         bytes32 key = keccak256(abi.encodePacked(data, classification, addedTime, submitter));
         StoredData storage existingData = addedData[key];
+
         // Validate found value.
         require(existingData.sender != address(0), "Data not found.");
         // usually unnecessary: require(isDataEqual(existingData.d, data), "Data is not equal.");
@@ -170,11 +187,16 @@ contract DataHandler64 is Ownable, DataHandler {
         require(existingData.t == addedTime, "Added time is not equal.");
         require(existingData.sender == submitter, "Data is not from the sender.");
 
+        // the return values
         claimableAmount = existingData.claimableAmount;
+        // true or false
         claimedBySubmitter = existingData.claimedBy[submitter];
         numClaims = existingData.numClaims;
 
         // Upon successful completion of the refund the values will be claimed.
+        // when someone can click the refund button at the client side
+        // it means the refund should be ok to get
+        // so here reset the claimable amount to 0
         existingData.claimableAmount = 0;
         existingData.claimedBy[submitter] = true;
         existingData.numClaims = numClaims.add(1);
@@ -199,8 +221,11 @@ contract DataHandler64 is Ownable, DataHandler {
         int64[] memory data, uint64 classification, uint addedTime, address originalAuthor)
         public onlyOwner
         returns (uint initialDeposit, uint claimableAmount, bool claimedByReporter, uint numClaims, bytes32 dataKey) {
+        // still first get the meta-data
+        // in this case it is also one of the return values
         dataKey = keccak256(abi.encodePacked(data, classification, addedTime, originalAuthor));
         StoredData storage existingData = addedData[dataKey];
+
         // Validate found value.
         require(existingData.sender != address(0), "Data not found.");
         // usually unnecessary: require(isDataEqual(existingData.d, data), "Data is not equal.");
@@ -208,16 +233,24 @@ contract DataHandler64 is Ownable, DataHandler {
         require(existingData.t == addedTime, "Added time is not equal.");
         require(existingData.sender == originalAuthor, "Sender is not equal.");
 
+        // return values
+        // the dataKey is above
         initialDeposit = existingData.initialDeposit;
         claimableAmount = existingData.claimableAmount;
         claimedByReporter = existingData.claimedBy[reporter];
         numClaims = existingData.numClaims;
 
+        // update
         existingData.claimedBy[reporter] = true;
         existingData.numClaims = numClaims.add(1);
     }
 
     /**
+     * @param data just the single sample.
+     * @param classification corresponding label.
+     * @param addedTime The time in seconds for which the data was added.
+     * @param originalAuthor the original provider of the data.
+     * @param claimer the one to see if claimed before or not (refund or report)
      * @return `true` if the contribution has already been claimed by `claimer`, otherwise `false`.
      */
     function hasClaimed(
@@ -225,8 +258,10 @@ contract DataHandler64 is Ownable, DataHandler {
         uint addedTime, address originalAuthor,
         address claimer)
         public view returns (bool) {
+        // get the meta-data
         bytes32 key = keccak256(abi.encodePacked(data, classification, addedTime, originalAuthor));
         StoredData storage existingData = addedData[key];
+
         // Validate found value.
         // usually unnecessary: require(isDataEqual(existingData.d, data), "Data is not equal.");
         require(existingData.c == classification, "Classification is not equal.");
@@ -236,10 +271,18 @@ contract DataHandler64 is Ownable, DataHandler {
         return existingData.claimedBy[claimer];
     }
 
+    // update the claimable amount of the corresponding data
+    // called from the IncentiveMechanism (same owner)
+    /**
+    * @param dataKey the hash of the data
+    * @param rewardAmount given by IncentiveMechanism
+     */
     function updateClaimableAmount(bytes32 dataKey, uint rewardAmount)
         public override onlyOwner {
         StoredData storage existingData = addedData[dataKey];
-        // Already validated key lookup.
+        // Already validated key lookup (in the handleReport function).
+        
+        // update the remaining claimable amount
         existingData.claimableAmount = existingData.claimableAmount.sub(rewardAmount);
     }
 }
