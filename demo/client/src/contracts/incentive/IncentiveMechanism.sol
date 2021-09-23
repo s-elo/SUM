@@ -6,11 +6,14 @@ import {Ownable} from "../ownership/Ownable.sol";
  * Defines incentives for others to contribute "good" quality data.
  */
 abstract contract IncentiveMechanism {
+    // to store the number of valid samples and the total submitted number
+    // from a particular contributor (address)
     struct AddressStats {
         uint128 numValid;
         uint128 numSubmitted;
     }
 
+    // each address is mapped to a AddressStats structure
     mapping(address => AddressStats) public addressStats;
 
     /**
@@ -24,9 +27,12 @@ abstract contract IncentiveMechanism {
     uint public totalGoodDataCount = 0;
 
     // The following members are in chronologically increasing order of when they should occur.
+    // anyAddressClaimWaitTimeS > ownerClaimWaitTimeS > refundWaitTimeS
+    // refundWaitTimeS is actually the main one
     /**
      * Amount of time to wait to get a refund back.
      * Once this amount of time has passed, the entire deposit can be reclaimed.
+     * namely the refund button at the client-side can be pressed
      * Also once this amount of time has passed, the deposit (in full or in part) can be taken by others.
      */
     uint32 public refundWaitTimeS;
@@ -35,7 +41,8 @@ abstract contract IncentiveMechanism {
      * Amount of time owner has to wait to take someone's entire remaining refund.
      * The purpose of this is to give the owner some incentive to deploy a model.
      * This must be greater than the required amount of time to wait for attempting a refund.
-     * Contracts may want to enforce that this is much greater than the amount of time to wait for attempting a refund
+     * Contracts may want to enforce that this is much greater than
+     * the amount of time to wait for attempting a refund
      * to give even more time to get the deposit back and not let the owner take too much.
      */
     uint32 public ownerClaimWaitTimeS;
@@ -45,12 +52,14 @@ abstract contract IncentiveMechanism {
      * Similar to `ownerClaimWaitTimeS` but it allows any address to claim funds for specific data.
      * The purpose of this is to help ensure that value does not get "stuck" in a contract.
      * This must be greater than the required amount of time to wait for attempting a refund.
-     * Contracts may want to enforce that this is much greater than the amount of time to wait for attempting a refund
+     * Contracts may want to enforce that this is much greater than 
+     * the amount of time to wait for attempting a refund
      * to give even more time to get the deposit back and not let others take too much.
      */
     uint32 public anyAddressClaimWaitTimeS;
     // End claim time members.
 
+    // can be set when we add a new model
     constructor(
         // Parameters in chronological order.
         uint32 _refundWaitTimeS,
@@ -119,10 +128,10 @@ abstract contract IncentiveMechanism64 is Ownable, IncentiveMechanism {
      * @param data The data for which to attempt a refund.
      * @param classification The label originally submitted with `data`.
      * @param addedTime The time when the data was added.
-     * @param claimableAmount The amount that can be claimed for the refund.
-     * @param claimedBySubmitter True if the data has already been claimed by `submitter`, otherwise false.
-     * @param prediction The current prediction of the model for data.
-     * @param numClaims The number of claims that have been made for the contribution before this request.
+     * @param claimableAmount The amount that can be claimed for the refund. (from DataHandler)
+     * @param claimedBySubmitter True if the data has already been claimed by `submitter`, otherwise false. (from DataHandler)
+     * @param prediction The current prediction of the model for data. (from CollaborativeTrainer)
+     * @param numClaims The number of claims that have been made for the contribution before this request. (from DataHandler)
      * @return refundAmount The amount to refund to `submitter`.
      */
     function handleRefund(
@@ -143,11 +152,11 @@ abstract contract IncentiveMechanism64 is Ownable, IncentiveMechanism {
      * @param classification The label originally submitted with `data`.
      * @param addedTime The time when the data was added.
      * @param originalAuthor The address that originally added the data.
-     * @param initialDeposit The amount initially deposited when the data was added.
-     * @param claimableAmount The amount of the deposit that can still be claimed.
-     * @param claimedByReporter True if the data has already been claimed by `reporter`, otherwise false.
-     * @param prediction The current prediction of the model for data.
-     * @param numClaims The number of claims that have been made for the contribution before this request.
+     * @param initialDeposit The amount initially deposited when the data was added. (from DataHandler)
+     * @param claimableAmount The amount of the deposit that can still be claimed. (from DataHandler)
+     * @param claimedByReporter True if the data has already been claimed by `reporter`, otherwise false. (from DataHandler)
+     * @param prediction The current prediction of the model for data. (from CollaborativeTrainer)
+     * @param numClaims The number of claims that have been made for the contribution before this request. (from DataHandler)
      * @return rewardAmount The amount to reward to `reporter`.
      */
     function handleReport(

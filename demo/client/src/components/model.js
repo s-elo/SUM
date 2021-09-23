@@ -735,6 +735,7 @@ class Model extends React.Component {
     return this.state.contractInstance
       .getPastEvents("AddData", { fromBlock, toBlock })
       .then(async (results) => {
+
         let numAdded = 0;
         while (results.length > 0 && numAdded < this.state.numDataRowsLimit) {
           const infos = await Promise.all(
@@ -743,6 +744,9 @@ class Model extends React.Component {
               .filter(customFilter)
               .map(cb)
           );
+
+          // console.dir('filtered infos:', JSON.stringify(infos));
+
           const addedInfos = infos.filter((info) => info?.added);
           numAdded += addedInfos.length;
 
@@ -942,6 +946,8 @@ class Model extends React.Component {
   updateRefundData() {
     this.setState({ addedData: null });
     const contributor = this.state.accounts[0];
+    console.dir('accounts:', JSON.stringify(this.state.accounts));
+
     // Manually filter since getPastEvents doesn't work well when specifying sender.
     const customFilter = (d) =>
       d.returnValues.sender.toUpperCase() === contributor.toUpperCase();
@@ -950,12 +956,14 @@ class Model extends React.Component {
       "refund",
       customFilter,
       (d) => {
+        // from DataHandler
         const sender = d.returnValues.sender;
         const data = d.returnValues.d.map((v) => this.web3.utils.toHex(v));
         const classification = parseInt(d.returnValues.c);
         const time = parseInt(d.returnValues.t);
         const initialDeposit = parseInt(d.returnValues.cost);
-
+        
+        // from the database using hash match
         return this.getOriginalData(d.transactionHash)
           .then(async (originalData) => {
             const info = {
@@ -1295,12 +1303,17 @@ class Model extends React.Component {
   }
 
   train() {
+    // get the training data and the label
     const classification = this.state.trainClassIndex;
     let originalData = this.state.input;
-    // console.log(classification, originalData);
+
+    console.log('original sample:', classification, originalData);
+    // image type data?
     if (this.state.inputType === INPUT_TYPE_IMAGE) {
       originalData = document.getElementById("input-image");
     }
+
+    // using the slected encoder to process the data
     return this.transformInput(originalData).then((trainData) => {
       // TODO Pass around BN's and avoid rounding issues.
       // Add extra wei to help with rounding issues. Extra gets returned right away by the contract.
@@ -1310,6 +1323,7 @@ class Model extends React.Component {
       let sentNotificationKey;
 
       return this.state.contractInstance.methods
+      // using the main entry CollaborativeTrainer64 to add the data
         .addData(trainData, classification)
         .send({ from: this.state.accounts[0], value })
         .on("transactionHash", (transactionHash) => {
@@ -1332,6 +1346,8 @@ class Model extends React.Component {
               .saveOriginalData(transactionHash, new OriginalData(originalData))
               .then(() => {
                 this.notify("Saved info to database", { variant: "success" });
+
+                // it will handle this newly added data
                 return this.updateRefundData().then(this.updateDynamicInfo);
               })
               .catch((err) => {

@@ -72,8 +72,6 @@ contract CollaborativeTrainer64 is CollaborativeTrainer {
         Classifier64 _classifier
     )
         public
-        // _name, _description, and _encoder
-        // are inherited from CollaborativeTrainer
         CollaborativeTrainer(_name, _description, _encoder)
     {
         dataHandler = _dataHandler;
@@ -105,7 +103,7 @@ contract CollaborativeTrainer64 is CollaborativeTrainer {
             classification
         );
 
-        // update the model
+        // directly update the model
         classifier.update(data, classification);
 
         // Safe subtraction because cost <= msg.value.
