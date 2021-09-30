@@ -63,11 +63,13 @@ contract Points64 is IncentiveMechanism64, Points {
     function getNextAddDataCost(int64[] memory /* data */, uint64 /* classification */)
         public override view
         returns (uint) {
+        // no need to deposit
         return 0;
     }
 
     function handleAddData(uint /* msgValue */, int64[] memory /* data */, uint64 /* classification */)
         public override onlyOwner returns (uint cost) {
+        // no need to deposit
         cost = 0;
         totalSubmitted = totalSubmitted.add(1);
     }
@@ -82,6 +84,7 @@ contract Points64 is IncentiveMechanism64, Points {
         public override onlyOwner
         returns (uint refundAmount) {
         // `claimableAmount` should be 0.
+        // since no depsosit
         refundAmount = claimableAmount;
 
         require(numClaims == 0, "Already claimed.");

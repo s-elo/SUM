@@ -12,7 +12,7 @@
 ## How to handle the submitted data?
 
 1. The data will not be stored in the blockchain, only some meta-data of that particular sample
-   will be stored such as the added time and claimable amount etc. These meta-data will help
+   will be stored in the DataHandler such as the added time and claimable amount etc. These meta-data will help
    IncentiveMechanism to determine the required deposit, refund and reward amount.
 
 2. The meta-data can be access by the corresponding hash or key of that sample.
